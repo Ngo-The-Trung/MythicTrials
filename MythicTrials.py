@@ -35,6 +35,34 @@ def get_cur_game():
 
 
 ##### Spells/Items
+class SpellVodka(Level.Spell):
+
+    def on_init(self):
+        self.range = 0
+
+    def cast_instant(self, x, y):
+        self.caster.deal_damage(-self.caster.max_hp, Level.Tags.Heal, self)
+        num_skills = self.unlearn_all_skills()
+        self.learn_random_skills(num_skills)
+
+    def unlearn_all_skills(self):
+        num_skills = len(self.caster.get_skills())
+
+        for skill in self.caster.get_skills():
+            self.caster.remove_buff(skill)
+
+        return num_skills
+
+    def learn_random_skills(self, num_skills):
+        # Make a copy so we don't shuffle internal data
+        all_skills = [sp for sp in get_cur_game().all_player_skills]
+        random.shuffle(all_skills)
+        candidate_skills = all_skills[:num_skills]
+
+        for skill in candidate_skills:
+            self.caster.apply_buff(skill)
+
+
 class SpellWhiskey(Level.Spell):
 
     def on_init(self):
@@ -175,6 +203,14 @@ def whiskey():
     return item
 
 
+def vodka():
+    item = Level.Item()
+    item.name = "Vodka"
+    item.description = "Randomizes your skills then restore you to full health"
+    item.set_spell(SpellVodka())
+    return item
+
+
 ##### Mutators
 
 
@@ -266,18 +302,16 @@ class MordredOnlyWeakness(Mutators.Mutator):
 class DrunkenMage(Mutators.Mutator):
     def __init__(self):
         Mutators.Mutator.__init__(self)
-        self.description = ("All mana potions are whiskeys which randomize "
-            "your spells, upgrades and skills")
+        self.description = ("All health/mana potions are alcohols which "
+            "randomize your spells, upgrades and skills")
 
     def on_game_begin(self, game):
+        game.p1.remove_item(Consumables.heal_potion())
         game.p1.remove_item(Consumables.mana_potion())
-        game.p1.add_item(whiskey())
-        game.p1.add_item(whiskey())
-        game.p1.add_item(whiskey())
-        game.p1.add_item(whiskey())
-        game.p1.add_item(whiskey())
-        game.p1.add_item(whiskey())
-        game.p1.add_item(whiskey())
+        for _ in range(3):
+            game.p1.add_item(vodka())
+        for _ in range(3):
+            game.p1.add_item(whiskey())
 
     def on_levelgen(self, levelgen):
         items = levelgen.items
