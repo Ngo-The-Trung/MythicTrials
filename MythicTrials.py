@@ -1,7 +1,10 @@
-# Add the base directory to sys.path for testing- allows us to run the mod directly for quick testing
 import ctypes
 import inspect
+import os
 import sys
+
+# Add the base directory to sys.path for testing- allows us to run the mod
+# directly for quick testing
 sys.path.append('../..')
 
 
@@ -11,6 +14,30 @@ import Consumables
 import Level
 # import Monsters
 import Mutators
+
+
+##### Spells/Items
+class SpellWhiskey(Level.Spell):
+
+    def on_init(self):
+        self.range = 0
+
+        def cast_instant(self, x, y):
+            for spell in self.caster.spells:
+                spell.cur_charges = spell.get_stat('max_charges')
+
+
+def whiskey():
+    item = Level.Item()
+    item.name = "Whiskey"
+    # duration = 3
+    item.description = ("Randomizes your spells, upgrades and skills then "
+        "recharge your spells")
+    item.set_spell(SpellWhiskey())
+    return item
+
+
+##### Mutators
 
 
 class AllEnemiesToD(Mutators.Mutator):
@@ -40,7 +67,9 @@ class AllEnemiesToD(Mutators.Mutator):
                 break
 
         # Each unit needs its own spell instance btw
-        tod = CommonContent.SimpleMeleeAttack(damage=200, damage_type=Level.Tags.Dark)
+        tod = CommonContent.SimpleMeleeAttack(
+            damage=200, damage_type=Level.Tags.Dark
+        )
         tod.name = "Touch of Death"
         unit.spells.insert(0, tod)
 
@@ -55,7 +84,8 @@ class AllEnemiesToD(Mutators.Mutator):
 class AllConsumablesDeathDice(Mutators.Mutator):
     def __init__(self):
         Mutators.Mutator.__init__(self)
-        self.description = "A non health/mana potion consumables are replaced with Death Dice"
+        self.description = ("A non health/mana potion consumables are replaced "
+            "with Death Dice")
 
     def on_levelgen(self, levelgen):
         self.replace_consumables(levelgen.items)
@@ -90,7 +120,30 @@ class MordredOnlyWeakness(Mutators.Mutator):
                 "amount": 0,
             })
             # clown world
-            ctypes.pythonapi.PyFrame_LocalsToFast(ctypes.py_object(frame), ctypes.c_int(0))
+            ctypes.pythonapi.PyFrame_LocalsToFast(
+                ctypes.py_object(frame), ctypes.c_int(0)
+            )
+
+
+class DrunkenMage(Mutators.Mutator):
+    def __init__(self):
+        Mutators.Mutator.__init__(self)
+        self.description = ("All mana potions are whiskeys which randomize "
+            "your spells, upgrades and skills")
+
+    def on_game_begin(self, game):
+        items = game.p1.items
+        for i in range(len(items) - 1, -1, -1):
+            item = items[i]
+            if item.name == "Mana Potion":
+                items[i] = whiskey()
+
+    def on_levelgen(self, levelgen):
+        items = levelgen.items
+        for i, item in enumerate(items):
+            if item.name == "Mana Potion":
+                items[i] = whiskey()
+
 
 ##### Debugging/cheating
 
@@ -145,4 +198,42 @@ Mutators.all_trials.append(
         # BigCheat(),
     ])
 )
+Mutators.all_trials.append(
+    Mutators.Trial("Drunken Mage", [
+        DrunkenMage(),
 
+        # BigCheat(),
+    ])
+)
+
+
+##### Patches
+def patch_spell_icon():
+    # Make spell icons loadable from mod folder
+    # Don't move this function around.
+    # RiftWizard calls this module so we can't import RiftWizard directly
+    frame = inspect.stack()[-1].frame
+    PyGameView = frame.f_locals["PyGameView"]
+    orig = PyGameView.draw_spell_icon
+
+    def _impl_(self, spell, surface, x, y, grey=False, animated=False):
+        icon = orig(self, spell, surface, x, y, grey, animated)
+
+        if icon:
+            return icon
+
+        # Search in mods
+        for mod in os.listdir('mods'):
+            path = os.path.join('mods', mod)
+            os.chdir(path)
+            icon = orig(self, spell, surface, x, y, grey, animated)
+            if icon:
+                break
+            os.chdir("../../")
+
+        return icon
+
+    PyGameView.draw_spell_icon = _impl_
+
+
+patch_spell_icon()
