@@ -1,7 +1,9 @@
+import collections
 import ctypes
 import inspect
 import os
 import sys
+import random
 
 # Add the base directory to sys.path for testing- allows us to run the mod
 # directly for quick testing
@@ -16,15 +18,131 @@ import Level
 import Mutators
 
 
+def get_RiftWizard():
+    # Returns the RiftWizard.py module object
+    for f in inspect.stack()[::-1]:
+        if "file 'RiftWizard.py'" in str(f):
+            break
+
+    return f
+
+
+def get_cur_game():
+    # Returns the current Game object
+    RiftWizard = get_RiftWizard()
+
+    return RiftWizard.frame.f_locals["main_view"].game
+
+
 ##### Spells/Items
 class SpellWhiskey(Level.Spell):
 
     def on_init(self):
         self.range = 0
 
-        def cast_instant(self, x, y):
-            for spell in self.caster.spells:
-                spell.cur_charges = spell.get_stat('max_charges')
+    def cast_instant(self, x, y):
+        num_spells, num_upgrades, num_skills = self.unlearn_all()
+        self.learn_random_spells(num_spells, num_upgrades)
+        self.learn_random_skills(num_skills)
+
+    def unlearn_all(self):
+        # Returns numbers of spells, upgrades, skills
+        num_spells = len(self.caster.spells)
+        num_upgrades = sum([
+            1
+            for spell in self.caster.spells for upgrade in spell.spell_upgrades
+            if upgrade.applied
+        ])
+        num_skills = len(self.caster.get_skills())
+
+        # Nuke your spells and skills
+        while len(self.caster.spells) > 0:
+            self.caster.remove_spell(self.caster.spells[-1])
+
+        while True:
+            skills = self.caster.get_skills()
+            if len(skills) == 0:
+                break
+
+            self.caster.remove_buff(skills[0])
+
+        return num_spells, num_upgrades, num_skills
+
+    def count_distinct_upgrades(self, spell):
+        # Count upgrades, treating exclusive upgrade groups as 1 each
+        total = 0
+        seen = set()
+        for upgrade in spell.spell_upgrades:
+            if not upgrade.exc_class:
+                total += 1
+
+            if upgrade.exc_class in seen:
+                continue
+
+            seen.add(upgrade.exc_class)
+            total += 1
+
+        return total
+
+    def get_upgrade_candidates(self, spells):
+        # If a spell has an exclusive group, we pull out an upgrade randomly
+        # from that group
+        candidates = []
+        for spell in spells:
+            groups = collections.defaultdict(lambda: [])
+            for upgrade in spell.spell_upgrades:
+                if not upgrade.exc_class:
+                    candidates.append(upgrade)
+                    continue
+
+                groups[upgrade.exc_class].append(upgrade)
+
+            for name, upgrades in groups.items():
+                candidates.append(random.choice(upgrades))
+
+        return candidates
+
+    def learn_random_spells(self, num_spells, num_upgrades):
+        # Make a copy so we don't shuffle internal data
+        all_spells = [sp for sp in get_cur_game().all_player_spells]
+
+        # Reroll spells until they have enough rooms to fit our upgrades
+        # I suppose it's probably possible to get so many upgrades that this
+        # will reroll until you get exactly the same spells and upgrades
+        # but it's not worth working around yet
+        while True:
+            random.shuffle(all_spells)
+
+            spell_candidates = all_spells[:num_spells]
+            total_upgrades = sum([
+                self.count_distinct_upgrades(spell)
+                for spell in spell_candidates
+            ])
+            if total_upgrades < num_upgrades:
+                # We'll lose upgrades if we proceed, reroll
+                continue
+
+            break
+
+        learnable_upgrades = self.get_upgrade_candidates(spell_candidates)
+        random.shuffle(learnable_upgrades)
+        upgrade_candidates = learnable_upgrades[:num_upgrades]
+
+        # Add spells + upgrades to players
+        for spell in spell_candidates:
+            self.caster.add_spell(spell)
+
+        for upgrade in upgrade_candidates:
+            self.caster.apply_buff(upgrade)
+
+    def learn_random_skills(self, num_skills):
+        # Make a copy so we don't shuffle internal data
+        all_skills = [sp for sp in get_cur_game().all_player_skills]
+        random.shuffle(all_skills)
+        skill_candidates = all_skills[:num_skills]
+
+        for skill in skill_candidates:
+            self.caster.apply_buff(skill)
 
 
 def whiskey():
@@ -132,11 +250,14 @@ class DrunkenMage(Mutators.Mutator):
             "your spells, upgrades and skills")
 
     def on_game_begin(self, game):
-        items = game.p1.items
-        for i in range(len(items) - 1, -1, -1):
-            item = items[i]
-            if item.name == "Mana Potion":
-                items[i] = whiskey()
+        game.p1.remove_item(Consumables.mana_potion())
+        game.p1.add_item(whiskey())
+        game.p1.add_item(whiskey())
+        game.p1.add_item(whiskey())
+        game.p1.add_item(whiskey())
+        game.p1.add_item(whiskey())
+        game.p1.add_item(whiskey())
+        game.p1.add_item(whiskey())
 
     def on_levelgen(self, levelgen):
         items = levelgen.items
@@ -215,9 +336,8 @@ Mutators.all_trials.append(
 ##### Patches
 def patch_spell_icon():
     # Make spell icons loadable from mod folder
-    # Don't move this function around.
-    # RiftWizard calls this module so we can't import RiftWizard directly
-    frame = inspect.stack()[-1].frame
+    RiftWizard = get_RiftWizard()
+    frame = RiftWizard.frame
     PyGameView = frame.f_locals["PyGameView"]
     orig = PyGameView.draw_spell_icon
 
