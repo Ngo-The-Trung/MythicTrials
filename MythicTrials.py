@@ -41,32 +41,32 @@ class SpellWhiskey(Level.Spell):
         self.range = 0
 
     def cast_instant(self, x, y):
-        num_spells, num_upgrades, num_skills = self.unlearn_all()
-        self.learn_random_spells(num_spells, num_upgrades)
-        self.learn_random_skills(num_skills)
+        num_damage_spells, num_other_spells, num_upgrades = (
+            self.unlearn_all_spells()
+        )
+        self.learn_random_spells(
+            num_damage_spells, num_other_spells, num_upgrades
+        )
 
-    def unlearn_all(self):
-        # Returns numbers of spells, upgrades, skills
-        num_spells = len(self.caster.spells)
+    def unlearn_all_spells(self):
+        # Returns numbers of damage spells, other spells and upgrades
+        num_damage_spells = len([
+            sp for sp in self.caster.spells if self.is_damage_spell(sp)
+        ])
+        num_other_spells = len([
+            sp for sp in self.caster.spells if not self.is_damage_spell(sp)
+        ])
         num_upgrades = sum([
             1
             for spell in self.caster.spells for upgrade in spell.spell_upgrades
             if upgrade.applied
         ])
-        num_skills = len(self.caster.get_skills())
 
         # Nuke your spells and skills
         while len(self.caster.spells) > 0:
             self.caster.remove_spell(self.caster.spells[-1])
 
-        while True:
-            skills = self.caster.get_skills()
-            if len(skills) == 0:
-                break
-
-            self.caster.remove_buff(skills[0])
-
-        return num_spells, num_upgrades, num_skills
+        return num_damage_spells, num_other_spells, num_upgrades
 
     def count_distinct_upgrades(self, spell):
         # Count upgrades, treating exclusive upgrade groups as 1 each
@@ -102,18 +102,48 @@ class SpellWhiskey(Level.Spell):
 
         return candidates
 
-    def learn_random_spells(self, num_spells, num_upgrades):
+    def is_damage_spell(self, spell):
+        return (
+            Level.Tags.Sorcery in spell.tags or (
+                Level.Tags.Conjuration in spell.tags
+                and not(Level.Tags.Enchantment in spell.tags)
+            )
+        )
+
+    def learn_random_spells(
+        self, num_damage_spells, num_other_spells, num_upgrades
+    ):
+        """
+        Relearn rules:
+        1. Sorcery and non-enchantment conjuration spells are considered damage
+           spells
+        2. Damage spells are only replaced by damage spells
+        3. The rest are completely random
+        This is mostly to ensure that the player can do *some* damage after
+        drinking, which should reduces the chance of softlocking
+        It won't prevent you from dying, so drink responsibly
+        """
+
         # Make a copy so we don't shuffle internal data
         all_spells = [sp for sp in get_cur_game().all_player_spells]
-
+        all_damage_spells = [
+            sp for sp in all_spells if self.is_damage_spell(sp)
+        ]
+        all_other_spells = [
+            sp for sp in all_spells if not self.is_damage_spell(sp)
+        ]
         # Reroll spells until they have enough rooms to fit our upgrades
         # I suppose it's probably possible to get so many upgrades that this
         # will reroll until you get exactly the same spells and upgrades
         # but it's not worth working around yet
         while True:
-            random.shuffle(all_spells)
+            random.shuffle(all_damage_spells)
+            random.shuffle(all_other_spells)
 
-            spell_candidates = all_spells[:num_spells]
+            spell_candidates = (
+                all_damage_spells[:num_damage_spells]
+                + all_other_spells[:num_other_spells]
+            )
             total_upgrades = sum([
                 self.count_distinct_upgrades(spell)
                 for spell in spell_candidates
@@ -135,22 +165,12 @@ class SpellWhiskey(Level.Spell):
         for upgrade in upgrade_candidates:
             self.caster.apply_buff(upgrade)
 
-    def learn_random_skills(self, num_skills):
-        # Make a copy so we don't shuffle internal data
-        all_skills = [sp for sp in get_cur_game().all_player_skills]
-        random.shuffle(all_skills)
-        skill_candidates = all_skills[:num_skills]
-
-        for skill in skill_candidates:
-            self.caster.apply_buff(skill)
-
 
 def whiskey():
     item = Level.Item()
     item.name = "Whiskey"
-    # duration = 3
-    item.description = ("Randomizes your spells, upgrades and skills then "
-        "recharge your spells")
+    item.description = ("Randomizes your spells and upgrades then recharge "
+        "your spells")
     item.set_spell(SpellWhiskey())
     return item
 
