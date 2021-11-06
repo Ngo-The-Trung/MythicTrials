@@ -187,24 +187,28 @@ class BigCheat(Mutators.Mutator):
 
         return unit
 
+
+def cheatify(mutator_list):
+    if 'cheatmode' in sys.argv:
+        return mutator_list + [BigCheat()]
+
+    return mutator_list
+
+
 ##### End Debugging
 
 
 Mutators.all_trials.append(
-    Mutators.Trial("Danse Macabre", [
+    Mutators.Trial("Danse Macabre", cheatify([
         AllEnemiesToD(),
         AllConsumablesDeathDice(),
         MordredOnlyWeakness(),
-
-        # BigCheat(),
-    ])
+    ]))
 )
 Mutators.all_trials.append(
-    Mutators.Trial("Drunken Mage", [
+    Mutators.Trial("Drunken Mage", cheatify([
         DrunkenMage(),
-
-        # BigCheat(),
-    ])
+    ]))
 )
 
 
