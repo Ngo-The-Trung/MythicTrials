@@ -228,6 +228,7 @@ def patch_spell_icon():
             os.chdir(path)
             icon = orig(self, spell, surface, x, y, grey, animated)
             if icon:
+                os.chdir(path)
                 break
             os.chdir("../../")
 
