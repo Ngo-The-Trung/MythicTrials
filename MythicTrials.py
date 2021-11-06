@@ -142,7 +142,7 @@ Mutators.all_trials.append(
         AllConsumablesDeathDice(),
         MordredOnlyWeakness(),
 
-        BigCheat(),
+        # BigCheat(),
     ])
 )
 
