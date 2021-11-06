@@ -166,6 +166,7 @@ class BigCheat(Mutators.Mutator):
             Level.Tags.Poison,
         ]:
             game.p1.resists[tag] = 50
+        game.p1.xp = 1000
 
         # Death dices
         for _ in range(50):
