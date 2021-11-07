@@ -261,7 +261,7 @@ class AllConsumablesDeathDice(Mutators.Mutator):
         self.description = ("A non health/mana potion consumables are replaced "
             "with Death Dice")
 
-    def on_levelgen(self, levelgen):
+    def on_levelgen_pre(self, levelgen):
         self.replace_consumables(levelgen.items)
 
     def replace_consumables(self, items):
