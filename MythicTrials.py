@@ -14,7 +14,7 @@ import CommonContent
 import Consumables
 # import Game
 import Level
-# import Monsters
+import Monsters
 import Mutators
 
 
@@ -273,9 +273,12 @@ class AllConsumablesDeathDice(Mutators.Mutator):
 class MordredOnlyWeakness(Mutators.Mutator):
     def __init__(self):
         Mutators.Mutator.__init__(self)
-        self.description = "Mordred can only be damaged through Death Dice"
+        self.description = (
+            "Mordred is weaker but only be damaged through Death Dice"
+        )
 
         self.global_triggers[Level.EventOnPreDamaged] = self.on_pre_damaged
+        self.global_triggers[Level.EventOnUnitPreAdded] = self.on_enemy_pre_added
 
     def on_pre_damaged(self, evt):
         if evt.unit.name != "Mordred":
@@ -297,6 +300,18 @@ class MordredOnlyWeakness(Mutators.Mutator):
             ctypes.pythonapi.PyFrame_LocalsToFast(
                 ctypes.py_object(frame), ctypes.c_int(0)
             )
+
+    def on_enemy_pre_added(self, evt):
+        if evt.unit.name != "Mordred":
+            return
+
+        evt.unit.shields = 0
+        evt.unit.resists[Level.Tags.Dark] = 0
+        evt.unit.remove_spell(Monsters.MordredCorruption())
+        corruption = Monsters.MordredCorruption()
+        corruption.force_difficulty = 19
+        corruption.cool_down = 25
+        evt.unit.add_spell(corruption)
 
 
 class DrunkenMage(Mutators.Mutator):

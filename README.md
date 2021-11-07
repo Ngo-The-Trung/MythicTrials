@@ -9,7 +9,8 @@ Add a 2 new trials. More to come
 Danse Macabre
 All enemies have Touch of Death
 All non health/mana potion consumables are replaced with Death Dice
-Mordred can only take damage from Death Dice
+Mordred is weaker but can only take damage from Death Dice
+Mordred: has no shield and 0% dark resist. Planar Interposition cooldown increased to 25s.
 ```
 
 ```
