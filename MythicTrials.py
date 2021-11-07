@@ -328,7 +328,7 @@ class DrunkenMage(Mutators.Mutator):
         for _ in range(3):
             game.p1.add_item(whiskey())
 
-    def on_levelgen(self, levelgen):
+    def on_levelgen_pre(self, levelgen):
         items = levelgen.items
         for i, item in enumerate(items):
             if item.name == "Mana Potion":
