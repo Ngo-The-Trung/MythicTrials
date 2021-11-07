@@ -333,6 +333,8 @@ class DrunkenMage(Mutators.Mutator):
         for i, item in enumerate(items):
             if item.name == "Mana Potion":
                 items[i] = whiskey()
+            if item.name == "Healing Potion":
+                items[i] = vodka()
 
 
 ##### Debugging/cheating
@@ -421,14 +423,33 @@ def patch_spell_icon():
             path = os.path.join('mods', mod)
             os.chdir(path)
             icon = orig(self, spell, surface, x, y, grey, animated)
+            os.chdir(os.path.join(os.pardir, os.pardir))
             if icon:
-                os.chdir(path)
                 break
-            os.chdir("../../")
 
         return icon
 
     PyGameView.draw_spell_icon = _impl_
 
 
+def patch_item_asset():
+    orig = Level.Item.get_asset
+
+    def _impl_(self):
+        asset = orig(self)
+        if asset[-1] == "trinket":
+            for mod in os.listdir('mods'):
+                path = os.path.join('mods', mod)
+                os.chdir(path)
+                asset = orig(self)
+                os.chdir(os.path.join(os.pardir, os.pardir))
+                if asset[-1] != "trinker":
+                    break
+
+        return asset
+
+    Level.Item.get_asset = _impl_
+
+
 patch_spell_icon()
+patch_item_asset()
